@@ -22,10 +22,26 @@ function decodeString(index) {
     return decoder.decode(strBuffer)
 }
 
+function append_text(index) {
+    var elem = document.createElement("p");
+    elem.innerText = decodeString(index);
+    document.body.append(elem);
+}
+
+function append_num(num) {
+    var elem = document.createElement("p");
+    elem.innerText = num;
+    document.body.append(elem);
+}
+
 (async () => {
+    body = 
     wasm = await WebAssembly.instantiateStreaming(fetch("main.wasm"), {
         "env": make_environment({
-            "log": index => console.log(decodeString(index)),
+            // "log": index => console.log(decodeString(index)),
+            "log": index => append_text(index),
+            //"log_num": num => console.log(num),
+            "log_num": num => append_num(num),
             "alert": index => alert(decodeString(index)),
         })
     });
