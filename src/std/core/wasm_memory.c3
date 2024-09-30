@@ -1,4 +1,4 @@
-module std::wasm_memory @private;
+module std::core::wasm_memory @private;
 
 import std::core::errors;
 
@@ -58,7 +58,6 @@ struct WasmMemory {
 
 // Pre-reserved data for all memory management memory, so we don't have to allocate our own data.
 WasmMemory wasm_memory;
-
 
 // Initializes all memory segments as unused, and gets the number of avalable bytes.
 fn void WasmMemory.init(&self) {

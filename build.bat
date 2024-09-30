@@ -7,6 +7,9 @@ c:/tools/c3-windows-Release/c3c.exe compile ^
  -o main ^
  -z --export-table ^
  -z --allow-undefined ^
- ./src/main.c3 ./src/browser.c3 ./src/ffi.c3
+ ./src/main.c3 ^
+ ./src/std/browser.c3 ./src/std/list.c3 ^
+ ./src/std/allocators/allocator.c3 ./src/std/allocators/memory_allocator.c3 ./src/std/allocators/arena.c3 ^
+ ./src/std/core/ffi.c3 ./src/std/core/errors.c3 ./src/std/core/wasm_memory.c3
 
 c:/tools/wabt-1.0.36/bin/wasm2wat ./main.wasm > ./main.wat
