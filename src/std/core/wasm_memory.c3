@@ -10,7 +10,7 @@ const usz WASM_BLOCK_SIZE = 65536;
 struct MemorySegment {
     bool used; // Whether it is being used to store an allocated or free segment.
     bool free; // If used is true, whether the value is free or allocated.
-    char* start;
+    any start;
     uptr size;
 
     // Every used segment that is allocated always has a following used free segment.
@@ -23,11 +23,14 @@ struct MemorySegment {
 
 // Sets every byte of this segment to the specified value.
 fn void MemorySegment.set(&self, char value) {
-    self.start[:self.size] = value;
+    char* seg_bytes = (char*)self.start;
+    for (usz i = 0; i < self.size; i++) {
+        seg_bytes[i] = value;
+    }
 }
 
 // Assigns a block of memory to a memory segment, and places it in the linked list.
-fn void MemorySegment.assign(&self, bool free, char* start, uptr size, MemorySegment* next, MemorySegment* prev) {
+fn void MemorySegment.assign(&self, bool free, any start, uptr size, MemorySegment* next, MemorySegment* prev) {
     self.used = true;
     self.free = free;
     self.start = start;
@@ -89,7 +92,7 @@ fn MemorySegment* WasmMemory.find_unused_segment(&self) {
     return null;
 }
 
-fn MemorySegment WasmMemory.find_free_segment(&self, usz num_bytes) {
+fn MemorySegment* WasmMemory.find_free_segment(&self, usz num_bytes) {
     MemorySegment* cur = &self.used_memory[0];
 
     int lim = 0;
@@ -108,24 +111,24 @@ fn MemorySegment WasmMemory.find_free_segment(&self, usz num_bytes) {
         cur.size += grown;
     }
 
+    usz remaining = cur.size - num_bytes;
+
     // Now we have a large enough segment. Use it, and let the next one be the remaining space.
     cur.free = false;
     cur.size = num_bytes;
 
-    usz remaining = cur.size - num_bytes;
     MemorySegment* next = cur.next;
     if (next != null) {
-        errors::throw("MERGEADD")!!;
         // Merge or add remaining empty space after the current block. If there is no remaining space,
         // leave the next segment as is.
         if (next.free) {
             // Merge the remaining space with the next block.
             next.size += remaining;
-            next.start -= remaining;
+            next.start = (any)((char*)next.start - remaining);
         } else {
             // Create a new freed block inbetween the current and previous next one.
             MemorySegment* between = self.find_unused_segment();
-            between.start = cur.start + num_bytes;
+            between.start = (any)((char*)cur.start + num_bytes);
             between.size = remaining;
             between.prev = cur;
             between.next = next;
@@ -135,7 +138,7 @@ fn MemorySegment WasmMemory.find_free_segment(&self, usz num_bytes) {
     } else {
         // Create a new freed block at the end.
         next = self.find_unused_segment();
-        next.start = cur.start + num_bytes;
+        next.start = (any)((char*)cur.start + num_bytes);
         next.size = remaining;
         next.prev = cur;
         next.next = null;
@@ -143,29 +146,21 @@ fn MemorySegment WasmMemory.find_free_segment(&self, usz num_bytes) {
         cur.next = next;
     }
     
-    return *cur;
+    return cur;
 }
 
-fn void WasmMemory.free_segment(&self, char *start) {
+// Finds the allocated segment with the specified start adres, or NONE.
+fn MemorySegment*! WasmMemory.find_segment(&self, any start) {
     MemorySegment* cur = null;
     foreach (&segment : self.used_memory) {
-        if (segment.start == start) {
-            // Free this segment.
-
-            if (segment.free) {
-                // This segment was already freed.
-                return;
-            }
-
-            // Otherwise, go on with freeing it.
-            cur = segment;
-            break;
-        }
+        if (!segment.used) continue;
+        if ((char*)segment.start == (char*)start) return segment;
     }
 
-    // If the segment was not found, don't do anything.
-    if (cur == null) return;
+    return Exception.NONE?;
+}
 
+fn void WasmMemory.free_segment(&self, MemorySegment* cur) {
     // Every used and allocated segment has a next one. So we can always check for a merge with the next one
     // if it is also freed.
     MemorySegment* prev = cur.prev;
@@ -200,18 +195,81 @@ fn void WasmMemory.free_segment(&self, char *start) {
     }
 }
 
+fn any WasmMemory.realloc(&self, MemorySegment* cur, usz num_bytes) {
+    MemorySegment *next = cur.next;
+    if (next.free && next.size >= num_bytes - cur.size) {
+        // We can merge the next segment with this one.
+        if (next.size == num_bytes - cur.size) {
+            // Merge the entire segment with current, make next one unused.
+            cur.next = next.next;
+            cur.size += next.size;
+            next.deinit();
+        } else {
+            // Move the start of the next segment to exclude the bytes added to current.
+            cur.size += num_bytes;
+            next.start = (any)((char*)next.start + num_bytes);
+            next.size -= num_bytes;
+        }
+
+        return cur.start;
+    } else {
+        // We cannot merge, move the memory to another segment that fits.
+        MemorySegment* new = self.find_free_segment(num_bytes);
+
+        char* cur_bytes = (char*)cur.start;
+        char* new_bytes = (char*)new.start;
+
+        // Copy the data, and zero-initialize the rest.
+        for (usz i = 0; i < new.size; i++) {
+            if (i < cur.size) { new_bytes[i] = cur_bytes[i]; }
+            else { new_bytes[i] = 0; }
+        }
+
+        // Free the old segment.
+        self.free_segment(cur);
+        return new.start;
+    }
+}
+
 // Public interface.
 
 // Allocates the specified number of bytes.
-fn char[] alloc(usz num_bytes) @public {
+fn any alloc(usz num_bytes) @public {
     if (wasm_memory.allocated == 0) wasm_memory.init();
-    MemorySegment segment = wasm_memory.find_free_segment(num_bytes);
-    return ((char*)segment.start)[:segment.size];
+    MemorySegment* segment = wasm_memory.find_free_segment(num_bytes);
+    segment.set(0);
+    return segment.start;
 }
 
 // Frees the memory segment starting with the specified pointer.
-fn void free(char* ptr) @public {
+fn void free(any ptr) @public {
     if (wasm_memory.allocated == 0) wasm_memory.init();
-    wasm_memory.free_segment(ptr);
+
+    MemorySegment*! segment = wasm_memory.find_segment(ptr);
+    // If the segment was not found, don't do anything.
+    if (catch segment) return;
+
+    // If the segment is already free, don't do anything.
+    if (segment.free) return;
+
+    wasm_memory.free_segment(segment);
 }
 
+// Re-allocates the memory segment starting with the specified pointer to the new size, either extending it or moving
+// it and copying the data.
+fn any realloc(any ptr, usz num_bytes) @public {
+    if (wasm_memory.allocated == 0) wasm_memory.init();
+
+    MemorySegment*! segment = wasm_memory.find_segment(ptr);
+    if (catch segment) {
+        errors::throw("Segment to reallocate not found.")!!;
+        return ptr; // Unreachable.
+    }
+
+    if (segment.size > num_bytes) {
+        errors::throw("Cannot shrink a segment.")!!;
+        return ptr; // Unreachable.
+    }
+
+    return wasm_memory.realloc(segment, num_bytes);
+}
