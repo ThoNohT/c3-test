@@ -1,6 +1,7 @@
 module std::core::wasm_memory @private;
 
 import std::core::errors;
+import std::browser;
 
 // The memory block size WASM uses (64KB). We can determine the number of available bytes by multiplying
 // $$wasm_memory_size(0) with this constant. Growing memory also happens one block size at a time.
@@ -258,12 +259,22 @@ fn void free(any ptr) @public {
 // Re-allocates the memory segment starting with the specified pointer to the new size, either extending it or moving
 // it and copying the data.
 fn any realloc(any ptr, usz num_bytes) @public {
-    if (wasm_memory.allocated == 0) wasm_memory.init();
+    if (wasm_memory.allocated == 0) {
+        browser::log("WasmMemory.realoc::init");
+        wasm_memory.init();
+    }
+    browser::log("WasmMemory.realoc::ptr");
+    browser::log_num((usz)(any*)ptr);
+
+    if (ptr == null) {
+        browser::log("WasmMemory.realoc::null");
+        return alloc(num_bytes);
+    }
 
     MemorySegment*! segment = wasm_memory.find_segment(ptr);
     if (catch segment) {
-        errors::throw("Segment to reallocate not found.")!!;
-        return ptr; // Unreachable.
+        browser::log("WasmMemory.realoc::not_found");
+        return alloc(num_bytes);
     }
 
     if (segment.size > num_bytes) {
@@ -271,5 +282,6 @@ fn any realloc(any ptr, usz num_bytes) @public {
         return ptr; // Unreachable.
     }
 
+    browser::log("WasmMemory.realoc::realloc");
     return wasm_memory.realloc(segment, num_bytes);
 }

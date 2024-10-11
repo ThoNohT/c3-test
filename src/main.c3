@@ -1,34 +1,81 @@
 import std::browser;
 import std::allocators::memory_allocator;
+import std::list;
+
+def IntList = List(<usz>);
 
 fn void main() @extern("main") @wasm {
 
-    browser::log("Allocating 1.");
-    char* b1 = (char*) memory_allocator::allocator.alloc(100);
-    browser::log("Allocating 2.");
-    char* b2 = (char*) memory_allocator::allocator.alloc(100);
-    browser::log("Allocating 3.");
-    char* b3 = (char*) memory_allocator::allocator.alloc(100);
-    browser::log("Done allocating.");
+    IntList l1;
 
-    browser::log("Pointer to first.");
-    browser::log_num((int)b1);
-    browser::log("Pointer to second.");
-    browser::log_num((int)b2);
-    browser::log("Pointer to third.");
-    browser::log_num((int)b3);
-    browser::log("Done showing.");
+    // browser::log_num(l1.count);
 
-    browser::log("Freeing 2.");
-    memory_allocator::allocator.free(b2);
-    browser::log("Reallocating 1.");
-    b1 = (char*)memory_allocator::allocator.realloc((any)b1, 200);
+    // browser::log("Append");
+    l1.append(6);
 
-    browser::log("Pointer to first.");
-    browser::log_num((int)b1);
-    browser::log("Pointer to third.");
-    browser::log_num((int)b3);
-    browser::log("Done showing.");
+    // browser::log_num(l1.count);
+    // browser::log_num((usz)&l1[0]);
+    // browser::log_num(l1[0]);
+
+    // browser::log("Append");
+    // l1.append(7);
+
+    // browser::log_num(l1.count);
+    // browser::log_num((usz)&l1[1]);
+    // browser::log_num(l1[1]);
+
+    // browser::log("Append");
+    // l1.append(8);
+
+    // browser::log_num(l1.count);
+    // browser::log_num((usz)&l1[2]);
+    // browser::log_num(l1[2]);
+
+    // browser::log("Append");
+    // l1.append(9);
+
+    // browser::log_num(l1.count);
+    // browser::log_num((usz)&l1[3]);
+    // browser::log_num(l1[3]);
+
+    IntList l2;
+
+    // browser::log_num(l2.count);
+
+    // browser::log("Append");
+    l2.append(6 + 10);
+
+    // browser::log_num(l2.count);
+    // browser::log_num((usz)&l2[0]);
+    // browser::log_num(l2[0]);
+
+    // browser::log("Append");
+    // l2.append(7 + 10);
+
+    // browser::log_num(l2.count);
+    // browser::log_num((usz)&l2[1]);
+    // browser::log_num(l2[1]);
+
+    // browser::log("Append");
+    // l2.append(8 + 10);
+
+    // browser::log_num(l2.count);
+    // browser::log_num((usz)&l2[2]);
+    // browser::log_num(l2[2]);
+
+    // browser::log("Append");
+    // l2.append(9 + 10);
+
+    // browser::log_num(l2.count);
+    // browser::log_num((usz)&l2[3]);
+    // browser::log_num(l2[3]);
+
+    // browser::log("Check");
+    // browser::log_num(l1[3]);
+    // browser::log_num(l2[3]);
+
+    // browser::log_num((usz)&l1[3]);
+    // browser::log_num((usz)&l2[3]);
 
     return;
 }
